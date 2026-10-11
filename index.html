@@ -231,8 +231,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-of
 <div id="overlay" class="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <div id="toast" class="toast" hidden></div>
 <input type="file" id="fileImport" accept="application/json,.json" hidden>
+<input type="file" id="filePhoto" accept="image/*" capture="environment" hidden>
 
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.2.2/dist/iife/ponyfill.js"></script>
 <script>
 (function(){
 "use strict";
@@ -672,27 +673,65 @@ function toast(msg,undo){const t=$("#toast");t.innerHTML=`<span>${esc(msg)}</spa
 
 /* ---------- productos y escáner ---------- */
 /* ---- escáner en directo + Open Food Facts ---- */
-let reader=null;
-function stopScan(){try{if(reader)reader.reset()}catch(e){}reader=null}
-function openScanner(){
+let scanStream=null,scanTimer=null,scanning=false,detector=null,frameN=0;
+const scanCanvas=document.createElement("canvas");
+function stopScan(){scanning=false;clearTimeout(scanTimer);if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}}
+async function getDetector(){
+  if(detector)return detector;
+  const want=["ean_13","ean_8","upc_a","upc_e"];
+  if("BarcodeDetector" in window){try{const sup=await window.BarcodeDetector.getSupportedFormats();const f=want.filter(x=>sup.includes(x));if(f.length){detector=new window.BarcodeDetector({formats:f});return detector}}catch(e){}}
+  if(window.BarcodeDetectionAPI&&window.BarcodeDetectionAPI.BarcodeDetector){detector=new window.BarcodeDetectionAPI.BarcodeDetector({formats:want});return detector}
+  return null;
+}
+function pickCode(res){const h=(res||[]).find(r=>/^\d{8,14}$/.test(String(r.rawValue||"")));return h?String(h.rawValue):null}
+function gotCode(code){if(!scanning&&!$("#scanVideo"))return;stopScan();if(navigator.vibrate)navigator.vibrate(60);lookupCode(code)}
+async function scanLoop(){
+  if(!scanning)return;
+  const v=$("#scanVideo");
+  if(v&&v.readyState>=2&&v.videoWidth){
+    const vw=v.videoWidth,vh=v.videoHeight;frameN++;
+    /* alterna: franja central ampliada (más rápida y nítida) y fotograma completo */
+    let sx=0,sy=0,cw=vw,ch=vh;
+    if(frameN%2){cw=Math.round(vw*.9);ch=Math.round(vh*.45);sx=(vw-cw)/2;sy=(vh-ch)/2}
+    const k=Math.min(1,1600/Math.max(cw,ch));
+    scanCanvas.width=Math.round(cw*k);scanCanvas.height=Math.round(ch*k);
+    scanCanvas.getContext("2d",{willReadFrequently:true}).drawImage(v,sx,sy,cw,ch,0,0,scanCanvas.width,scanCanvas.height);
+    try{const code=pickCode(await detector.detect(scanCanvas));if(code&&scanning){gotCode(code);return}}catch(e){}
+  }
+  scanTimer=setTimeout(scanLoop,90);
+}
+async function openScanner(){
   openSheet(`<div class="row between"><h3>Escanear</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
   <div class="scanbox"><video id="scanVideo" playsinline muted autoplay></video><div class="ret"></div></div>
-  <div class="status" id="scanMsg">Apunta al código de barras y mantén el móvil quieto.</div>
+  <div class="row" id="zoomRow" hidden><span class="small muted">Zoom</span><input type="range" id="zoom" class="grow"></div>
+  <div class="status" id="scanMsg">Abriendo cámara…</div>
+  <div class="row wrap"><button class="btn grow" data-act="photocode">${ICON.cam}Hacer foto del código</button></div>
   <div class="row"><input type="text" inputmode="numeric" id="manualCode" placeholder="O escribe el número del código" class="grow"><button class="btn" data-act="manualcode">Buscar</button></div>`,stopScan);
-  const Z=window.ZXing;const msg=$("#scanMsg");
-  if(!Z||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.className="status err";msg.textContent="Este navegador no permite usar la cámara. Escribe el número del código.";return}
-  const hints=new Map();
-  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);
-  hints.set(Z.DecodeHintType.TRY_HARDER,true);
-  reader=new Z.BrowserMultiFormatReader(hints,200);
-  let done=false;
-  reader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}},"scanVideo",(res)=>{
-    if(done||!res)return;done=true;
-    if(navigator.vibrate)navigator.vibrate(60);
-    const code=res.getText();stopScan();lookupCode(code);
-  }).catch(err=>{msg.className="status err";
-    msg.textContent=err&&err.name==="NotAllowedError"?"Sin permiso para la cámara. Actívalo en Ajustes › Safari › Cámara, o escribe el código.":"No se pudo abrir la cámara. Escribe el número del código."});
+  const msg=$("#scanMsg");const fail=t=>{msg.className="status err";msg.textContent=t};
+  const det=await getDetector();
+  if(!det){fail("No se ha podido cargar el lector. Revisa la conexión y vuelve a abrir el escáner, o escribe el código.");return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){fail("Este navegador no deja usar la cámara aquí. Usa “Hacer foto del código” o escríbelo.");return}
+  try{scanStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}})}
+  catch(err){fail(err&&err.name==="NotAllowedError"?"Sin permiso para la cámara. Actívalo en Ajustes › Safari › Cámara (o al abrir la app), o usa la foto.":"No se pudo abrir la cámara. Usa “Hacer foto del código” o escríbelo.");return}
+  const v=$("#scanVideo");if(!v){stopScan();return}
+  v.srcObject=scanStream;try{await v.play()}catch(e){}
+  const track=scanStream.getVideoTracks()[0];
+  try{const caps=track.getCapabilities?track.getCapabilities():{};
+    if(caps.focusMode&&caps.focusMode.includes("continuous"))await track.applyConstraints({advanced:[{focusMode:"continuous"}]});
+    if(caps.zoom&&caps.zoom.max>caps.zoom.min){const z=$("#zoom");z.min=caps.zoom.min;z.max=Math.min(caps.zoom.max,5);z.step=caps.zoom.step||.1;
+      const start=Math.min(+z.max,Math.max(caps.zoom.min,1.6));z.value=start;try{await track.applyConstraints({advanced:[{zoom:start}]})}catch(e){}
+      z.oninput=()=>{track.applyConstraints({advanced:[{zoom:+z.value}]}).catch(()=>{})};$("#zoomRow").hidden=false}
+  }catch(e){}
+  msg.className="status";msg.textContent="Pon el código dentro del recuadro, a unos 15-20 cm. Si sale borroso, aléjalo un poco.";
+  scanning=true;frameN=0;scanLoop();
 }
+$("#filePhoto").addEventListener("change",async e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;
+  const msg=$("#scanMsg");if(msg){msg.className="status";msg.textContent="Leyendo la foto…"}
+  const det=await getDetector();let code=null;
+  if(det){try{const bmp=await createImageBitmap(f);code=pickCode(await det.detect(bmp))}catch(err){}}
+  if(code){gotCode(code)}else if(msg){msg.className="status err";msg.textContent="No he encontrado el código en la foto. Prueba más cerca, recto y con buena luz, o escríbelo."}
+});
 async function fetchOFF(code){
   const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,product_name_es,generic_name_es,brands,nutriments,serving_quantity,quantity");
   if(!r.ok&&r.status!==404)throw new Error("net");
@@ -723,7 +762,7 @@ async function lookupCode(code){
   }else if(p){
     $("#sheet").innerHTML=prodForm(Object.assign({},p),"Encontrado, pero le faltan datos nutricionales. Complétalos una vez y queda guardado.",true);
   }else{
-    $("#sheet").innerHTML=prodForm({code},netErr?"Sin conexión con Open Food Facts. Rellénalo a mano o inténtalo luego.":"Este código no está en Open Food Facts. Rellénalo una vez (o búscalo por nombre) y queda guardado.",true);
+    $("#sheet").innerHTML=prodForm({code},netErr?"Sin conexión con Open Food Facts. Rellénalo a mano o inténtalo luego.":"Este código aún no está en Open Food Facts (pasa con algunos productos de marcas como HSN). Escribe el nombre y pulsa Buscar, o copia los valores de la etiqueta: solo tendrás que hacerlo esta vez.",true);
   }
 }
 async function searchOFF(){
@@ -815,6 +854,7 @@ const ACT={
   delextra(a){const d=nut(ui.date);const i=d.extra.findIndex(x=>x.id===a.dataset.id);if(i<0)return;const [it]=d.extra.splice(i,1);nutSave(ui.date);render();const dt=ui.date;toast("Actividad quitada",()=>{nut(dt).extra.splice(i,0,it);nutSave(dt)})},
   scan(){openScanner()},
   manualcode(){const v=$("#manualCode").value;stopScan();lookupCode(v)},
+  photocode(){stopScan();$("#filePhoto").click()},
   searchoff(){searchOFF()},
   pickres(a){const x=lastResults[+a.dataset.n];if(!x)return;const keep=$("#p_code").value.trim();fillProd(x);if(x.brand&&!$("#p_brand").value.trim())$("#p_brand").value=x.brand;if(!keep&&x.code)$("#p_code").value=x.code;$("#p_name").value=x.name;$("#offres").innerHTML="";pstatus("Datos cargados de Open Food Facts. Revisa y guarda.")},
   newprod(){openProduct({},"Para productos sin código: búscalo por nombre o rellena los valores de la etiqueta.")},

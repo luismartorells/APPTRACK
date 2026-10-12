@@ -368,6 +368,12 @@ function routine(){const r=docs.routine;return r&&r.days?r.days:{}}
 function routineDay(n){const d=routine()[n];return d?{title:d.title||"",note:d.note||"",items:d.items||[]}:{title:"",note:"",items:[]}}
 function routineEnsure(n){const r=ensure("routine",()=>({days:{}}));r.days=r.days||{};return r.days[n]||(r.days[n]={title:"",note:"",items:[]})}
 function gymRead(date){const m=docs["g-"+date.slice(0,7)];return (m&&m.days&&m.days[date.slice(8)]&&m.days[date.slice(8)].ex)||{}}
+function gymDayRead(date){const m=docs["g-"+date.slice(0,7)];return (m&&m.days&&m.days[date.slice(8)])||{}}
+function gymDay(date){const m=ensure("g-"+date.slice(0,7),()=>({days:{}}));m.days=m.days||{};const d=m.days[date.slice(8)]||(m.days[date.slice(8)]={ex:{}});d.ex=d.ex||{};return d}
+function dayItems(date,n){const d=gymDayRead(date),skip=new Set(d.skip||[]);
+  return routineDay(n).items.filter(x=>!skip.has(slug(x.name))).concat((d.extra||[]).map(x=>Object.assign({},x,{extra:true})))}
+const curDate=()=>addDays(ui.week,ui.gday-1);
+const curItems=()=>dayItems(curDate(),ui.gday);
 function gymEx(date,ex){const m=ensure("g-"+date.slice(0,7),()=>({days:{}}));m.days=m.days||{};const d=m.days[date.slice(8)]||(m.days[date.slice(8)]={ex:{}});d.ex=d.ex||{};const k=slug(ex.name);return d.ex[k]||(d.ex[k]={name:ex.name,type:ex.type||"peso",sets:[],note:""})}
 const gymSave=date=>save("g-"+date.slice(0,7));
 function bodyEntries(){return ((docs.body&&docs.body.entries)||[]).slice().sort((a,b)=>a.date<b.date?-1:1)}
@@ -506,18 +512,23 @@ function viewNutri(){
 
 /* ----- Gimnasio ----- */
 function viewGym(){
-  const t=today(),date=addDays(ui.week,ui.gday-1),r=routineDay(ui.gday),log=gymRead(date);
+  const t=today(),date=addDays(ui.week,ui.gday-1),r=routineDay(ui.gday),log=gymRead(date),items=dayItems(date,ui.gday),dnote=gymDayRead(date).note||"";
   const all=allSessions();
   let strip="";
-  for(let i=1;i<=7;i++){const dd=addDays(ui.week,i-1);const has=Object.keys(gymRead(dd)).length>0;
+  for(let i=1;i<=7;i++){const dd=addDays(ui.week,i-1);const has=Object.keys(gymRead(dd)).length>0||!!(gymDayRead(dd).note||"").trim();
     strip+=`<button class="wd ${dd===t?"today":""}" aria-pressed="${i===ui.gday}" data-act="gday" data-n="${i}"><b>${DL[i-1]}</b><span>${parse(dd).getDate()}</span>${has?"<i></i>":""}</button>`}
   const wEnd=addDays(ui.week,6);
   let banner="";
   if(isLastDay(t)&&date.slice(0,7)===t.slice(0,7))banner=summaryCard(t.slice(0,7),all,true);
   let body;
   if(ui.edit)body=editRoutine(r);
-  else if(!r.items.length)body=`<section class="card empty">${r.note?esc(r.note):"No hay ejercicios para este día."}<div style="margin-top:12px"><button class="btn sm" data-act="edit">${ICON.plus}Añadir ejercicios</button></div></section>`;
-  else body=r.items.map((ex,i)=>exCard(ex,i,date,log,all)).join("")+(r.note?`<p class="small muted" style="margin:0">${esc(r.note)}</p>`:"");
+  else{
+    body=(items.length?items.map((ex,i)=>exCard(ex,i,date,log,all)).join(""):`<section class="card empty">${r.note?esc(r.note):"No hay ejercicios para este día."}</section>`)
+    +`<button class="btn" style="width:100%" data-act="addexday">${ICON.plus}Añadir ejercicio</button>`
+    +(r.note&&items.length?`<p class="small muted" style="margin:0">${esc(r.note)}</p>`:"")
+    +`<section class="card"><div class="row between"><h3>Notas del día</h3><span class="small muted">${fmtShort(date)}</span></div>
+      <textarea id="daynote" data-in="daynote" rows="3" style="margin-top:10px" placeholder="Cómo te has sentido, sueño, energía, molestias, lo que quieras recordar de este día…">${esc(dnote)}</textarea></section>`;
+  }
   return `<div class="datenav"><button class="iconbtn" data-act="week" data-n="-7" aria-label="Semana anterior">${ICON.l}</button>
   <div style="text-align:center"><h2 style="font-size:20px">Semana ${parse(ui.week).getDate()}–${fmtShort(wEnd)}</h2>${ui.week!==monday(t)?`<div class="sub"><a href="#" data-act="thisweek" style="color:inherit">ir a esta semana</a></div>`:`<div class="sub">esta semana</div>`}</div>
   <button class="iconbtn" data-act="week" data-n="7" aria-label="Semana siguiente">${ICON.r}</button></div>
@@ -549,12 +560,12 @@ function exCard(ex,i,date,log,all){
   const curS={type,sets:cur.sets.filter(x=>num(x.r)>0)};const m1=metric(last),m2=metric(curS);
   if(m1&&m2){const p=pctOf(m1.v,m2.v);if(p!=null)cmp=`<span class="small ${p>0.05?"better":p<-0.05?"worse":"muted"}" style="font-weight:600">${p>0.05?"▲ ":p<-0.05?"▼ ":""}${pctStr(p)} vs última vez</span>`}
   return `<section class="card ex">
-    <div class="head"><div class="grow"><h4>${esc(ex.name)}</h4>${ex.hint?`<div class="hint">${esc(ex.hint)}</div>`:""}</div><span class="target">${esc(ex.sets)} × ${esc(ex.reps)}${type==="tiempo"?" min":""}</span></div>
+    <div class="head"><div class="grow"><h4>${esc(ex.name)}${ex.extra?'<span class="src">solo este día</span>':""}</h4>${ex.hint?`<div class="hint">${esc(ex.hint)}</div>`:""}</div><span class="target">${esc(ex.sets)} × ${esc(ex.reps)}${type==="tiempo"?" min":""}</span><button class="x" data-act="rmex" data-k="${i}" aria-label="Quitar ejercicio" style="margin:-4px -6px 0 0">${ICON.x}</button></div>
     <div class="last">${last?`<span class="lbl" style="letter-spacing:.06em">Última vez · ${fmtShort(last.date)}</span><br><b>${esc(fmtSets(last))}</b>`:`<span class="muted">Primera vez: hoy marcas la referencia.</span>`}
       ${lastNote?`<div class="note small">Nota del ${fmtShort(lastNote.date)}: ${esc(lastNote.note)}</div>`:""}</div>
     <div class="sets">${setsHtml}</div>
     <div class="row wrap between" style="margin-top:8px"><div class="row"><button class="btn sm ghost" data-act="addset" data-k="${i}">${ICON.plus}Serie</button>${last?`<button class="btn sm ghost" data-act="copylast" data-k="${i}">Repetir última</button>`:""}</div>${cmp}</div>
-    <div class="notebox"><textarea id="note-${key}" data-in="note" data-k="${i}" rows="1" placeholder="Nota del día: lesión, cansancio, sensaciones…">${esc(cur.note||"")}</textarea></div>
+    <div class="notebox"><textarea id="note-${key}" data-in="note" data-k="${i}" rows="1" placeholder="Nota de este ejercicio: lesión, cansancio, sensaciones…">${esc(cur.note||"")}</textarea></div>
   </section>`;
 }
 function editRoutine(r){
@@ -620,7 +631,9 @@ function viewProg(){
   const wPts=body.filter(e=>num(e.weight)>0).map(e=>({x:e.date,y:num(e.weight)}));
   const fPts=body.filter(e=>num(e.bf)>0).map(e=>({x:e.date,y:num(e.bf)}));
   const delta=(pts,u,dec)=>pts.length>1?(()=>{const dlt=pts[pts.length-1].y-pts[0].y;return `<span class="pctpill ${dlt>0?"up":dlt<0?"down":"flat"}" style="background:var(--sunk);color:var(--ink)">${dlt>0?"+":""}${nf(dlt,dec)} ${u} desde el inicio</span>`})():"";
-  const notes=[];Object.values(all).forEach(a=>a.forEach(s=>{if(s.note)notes.push(s)}));notes.sort((a,b)=>a.date<b.date?1:-1);
+  const notes=[];Object.values(all).forEach(a=>a.forEach(s=>{if(s.note)notes.push(s)}));
+  Object.keys(docs).filter(k=>/^g-\d{4}-\d{2}$/.test(k)).forEach(k=>{const days=(docs[k]&&docs[k].days)||{};Object.keys(days).forEach(dd=>{const n=(days[dd].note||"").trim();if(n)notes.push({date:k.slice(2)+"-"+dd,name:"Nota del día",note:n,day:true})})});
+  notes.sort((a,b)=>a.date<b.date?1:(a.date>b.date?-1:(a.day?-1:1)));
   const pill=p=>p==null?`<span class="pctpill flat">—</span>`:`<span class="pctpill ${p>0.05?"up":p<-0.05?"down":"flat"}">${pctStr(p)}</span>`;
   return `<div class="datenav"><div><h2>Progreso</h2><div class="sub">Desde tu primer registro</div></div></div>
   <div class="stack">
@@ -748,11 +761,17 @@ async function fetchOFF(code){
   if(!j||j.status!==1||!j.product)return null;
   return offToProduct(j.product,code);
 }
+const TXT=v=>v==null?"":typeof v==="string"?v:Array.isArray(v)?v.join(", "):typeof v==="object"?(v.es||v.main||Object.values(v)[0]||""):String(v);
+const TAGES={frozen:"congelado",vegetables:"verdura",vegetable:"verdura",fruits:"fruta",meats:"carne",meat:"carne",chicken:"pollo",poultry:"ave",fish:"pescado",seafood:"marisco",dairies:"lacteo",cheeses:"queso",yogurts:"yogur",breads:"pan",rices:"arroz",rice:"arroz",pastas:"pasta",legumes:"legumbre",eggs:"huevo",beverages:"bebida",snacks:"snack",sauces:"salsa",nuts:"fruto seco",chocolates:"chocolate",cereals:"cereal",breakfast:"desayuno",desserts:"postre",soups:"sopa",salads:"ensalada",potatoes:"patata",mixed:"mezcla",ham:"jamon",sausages:"embutido",milks:"leche",juices:"zumo",biscuits:"galleta",cookies:"galleta",proteins:"proteina",ready:"preparado",meals:"plato",pizzas:"pizza",spinach:"espinaca",broccoli:"brocoli",peas:"guisante",beans:"judia",tuna:"atun",salmon:"salmon",hake:"merluza",shrimps:"gamba",prawns:"gamba",oils:"aceite",olive:"oliva",plant:"vegetal",based:""};
+function tagsEs(tags){return (Array.isArray(tags)?tags:[]).map(t=>String(t).replace(/^[a-z]{2}:/,"").split("-").map(w=>TAGES[w]!=null?TAGES[w]:w).join(" ")).join(" ")}
 function offToProduct(p,code){
   const n=p.nutriments||{};
   let kcal=n["energy-kcal_100g"];if(kcal==null&&n.energy_100g!=null)kcal=n.energy_100g/4.184;
   const r1=v=>v==null||!isFinite(+v)?null:Math.round(+v*10)/10;
-  return {code:String(code||p.code||""),name:(p.product_name_es||p.product_name||p.generic_name_es||"").trim(),brand:(p.brands||"").split(",")[0].trim(),
+  const brands=Array.isArray(p.brands)?p.brands:TXT(p.brands).split(",");
+  return {code:String(code||p.code||""),name:(TXT(p.product_name_es)||TXT(p.product_name)||TXT(p.generic_name_es)).trim(),brand:String(brands[0]||"").trim(),
+    cat:TXT(p.categories)+" "+tagsEs(p.categories_tags)+" "+TXT(p.generic_name_es),
+    es:(Array.isArray(p.countries_tags)?p.countries_tags:TXT(p.countries_tags).split(",")).some(c=>/spain|espa/i.test(c)),
     kcal:r1(kcal),p:r1(n.proteins_100g),c:r1(n.carbohydrates_100g),f:r1(n.fat_100g),serving:r1(p.serving_quantity),src:"off"};
 }
 async function lookupCode(code){
@@ -874,6 +893,13 @@ B("Calabacín",17,1.2,2.2,0.3,"","verdura"),
 B("Pepino",15,0.7,2.6,0.1,"","verdura ensalada"),
 B("Champiñones",22,3.1,0.5,0.3,"","setas"),
 B("Judías verdes",31,1.8,4.3,0.2,"","verdura"),
+B("Menestra de verduras congelada",42,2.6,5,0.5,"","verdura congelada"),
+B("Salteado de verduras congelado",45,2,6,0.8,"","verdura congelada wok"),
+B("Espinacas congeladas",25,2.8,1.4,0.4,"","verdura congelada"),
+B("Brócoli congelado",30,2.8,3.2,0.4,"","verdura congelada brocoli"),
+B("Judías verdes congeladas",28,1.8,3.7,0.2,"","verdura congelada"),
+B("Guisantes congelados",77,5.2,9.5,0.4,"","verdura congelada"),
+B("Mezcla de verduras para sopa congelada",35,1.5,5.5,0.3,"","verdura congelada"),
 B("Guisantes",81,5.4,10,0.4,"","verdura"),
 B("Maíz dulce (lata)",82,3,14,1.2,"",""),
 B("Gazpacho",50,1,3.5,3.4,"vaso|vasos|250",""),
@@ -911,10 +937,36 @@ function matcher(q){
     return score;
   };
 }
+const STORES={mercadona:"hacendado",consum:"consum",dia:"dia",carrefour:"carrefour",alcampo:"auchan",lidl:"lidl",eroski:"eroski",aldi:"aldi",hsn:"hsn",myprotein:"myprotein"};
+function storeQ(q){return NORM(q).split(" ").map(t=>STORES[t]||t).join(" ")}
+function dropStores(q){return NORM(q).split(" ").filter(t=>!STORES[t]&&!Object.values(STORES).includes(t)).join(" ")}
+function relaxedRank(list,q,textOf,brandOf){
+  const toks=NORM(q).split(" ").filter(t=>t&&!STOP.has(t));if(!toks.length)return [];
+  const brandT=toks.filter(t=>Object.values(STORES).includes(t)).map(stem);
+  const plain=toks.filter(t=>!Object.values(STORES).includes(t)).map(stem);
+  const scored=list.map((x,ix)=>{
+    const words=NORM(textOf(x)).split(" ").filter(Boolean).map(stem);
+    const nameW=NORM(x.name).split(" ").filter(Boolean).map(stem);
+    const bw=NORM(brandOf(x)).split(" ").filter(Boolean).map(stem);
+    if(brandT.some(b=>!bw.some(w=>w.startsWith(b))&&!words.some(w=>w===b)))return null;
+    let m=0,sc=0;
+    plain.forEach(t=>{
+      const hit=w=>w===t||w.startsWith(t)||(t.length>=4&&w.includes(t));
+      if(nameW.some(hit)){m++;sc+=nameW[0]&&hit(nameW[0])?6:4}
+      else if(words.some(hit)){m++;sc+=1}
+    });
+    if(plain.length&&m===0)return null;
+    const full=m===plain.length;
+    return {x,full,s:(full?1000:0)+m*20+sc+(x.es?30:0)-ix*0.01};
+  }).filter(Boolean).sort((a,b)=>b.s-a.s);
+  const fulls=scored.filter(o=>o.full);
+  const parts=scored.filter(o=>!o.full).slice(0,Math.max(0,30-fulls.length));
+  return fulls.concat(parts).map(o=>o.x);
+}
 function rank(list,q,textOf){const m=matcher(q);return list.map(x=>({x,s:m(textOf(x))})).filter(o=>o.s>=0).sort((a,b)=>b.s-a.s).map(o=>o.x)}
 const defG=x=>x.lastG||(x.unit&&x.unit.g)||x.serving||100;
 function unitTxt(u,g){if(!u||!u.g||!g)return "";const n=g/u.g;if(Math.abs(n-Math.round(n))>0.01)return "";return nf(n)+" "+(Math.round(n)===1?u.s:u.p)+" · "}
-let fs={h:[],b:[],o:[],q:"",ctl:null,t:null,status:"",forCode:""};
+let fs={h:[],b:[],o:[],q:"",ctl:null,t:null,status:"",forCode:"",page:1,more:false,seen:new Set()};
 function resRow(x,src,i){
   const g=defG(x),k=g/100;
   return `<div class="item res" data-act="fspick" data-src="${src}" data-i="${i}"><div class="grow"><div class="name">${esc(x.name)}${src==="b"?'<span class="src">genérico</span>':""}</div><div class="meta">${x.brand?esc(x.brand)+" · ":""}${unitTxt(x.unit,g)||nf(g)+" g · "}<b>${nf(x.kcal*k)} kcal</b> · P ${nf(x.p*k,1)} · H ${nf(x.c*k,1)} · G ${nf(x.f*k,1)}</div></div><button class="qadd" data-act="fsquick" data-src="${src}" data-i="${i}" aria-label="Añadir ${esc(x.name)}">${ICON.plus}</button></div>`;
@@ -922,7 +974,10 @@ function resRow(x,src,i){
 function drawResults(){
   const box=$("#fsres");if(!box)return;
   const sec=(t,arr,src)=>arr.length?`<div class="lbl reslbl">${t}</div>`+arr.map((x,i)=>resRow(x,src,i)).join(""):"";
-  let html=sec(fs.q?"Tus alimentos":"Recientes",fs.h,"h")+sec("Alimentos básicos",fs.b,"b")+sec("Productos de marca · Open Food Facts",fs.o,"o");
+  const hasStore=NORM(fs.q).split(" ").some(t=>STORES[t]||Object.values(STORES).includes(t));
+  const offSec=sec("Supermercados y marcas · "+fs.o.length+" resultados",fs.o,"o"),bSec=sec("Alimentos básicos",fs.b,"b");
+  let html=sec(fs.q?"Tus alimentos":"Recientes",fs.h,"h")+(hasStore?offSec+bSec:bSec+offSec);
+  if(fs.more&&fs.o.length&&!fs.ctl)html+=`<button class="btn ghost sm" style="width:100%;margin-top:8px" data-act="fsmore">Ver más resultados</button>`;
   if(fs.status)html+=`<div class="status small" style="margin-top:8px">${esc(fs.status)}</div>`;
   if(!html)html=`<div class="empty small">Escribe un alimento o una marca.</div>`;
   box.innerHTML=html;
@@ -933,34 +988,52 @@ function doSearch(q){
   if(!fs.q){fs.h=hist.sort((a,b)=>(b.lastUsed||0)-(a.lastUsed||0)).slice(0,10);fs.b=[];fs.o=[];fs.status="";drawResults();return}
   fs.h=rank(hist,fs.q,x=>x.name+" "+(x.brand||"")+" "+(x.k||"")).slice(0,8);
   const hn=new Set(fs.h.map(x=>NORM(x.name)));
-  fs.b=rank(BASE,fs.q,x=>x.name+" "+x.k).filter(x=>!hn.has(NORM(x.name))).slice(0,8);
-  fs.o=[];fs.status=fs.q.length>=3?"Buscando productos de marca…":"";drawResults();
+  const bq=dropStores(fs.q);
+  fs.b=bq?rank(BASE,bq,x=>x.name+" "+x.k).filter(x=>!hn.has(NORM(x.name))).slice(0,8):[];
+  fs.o=[];fs.page=1;fs.more=false;fs.seen=new Set();fs.status=fs.q.length>=3?"Buscando productos de supermercado y marcas…":"";drawResults();
   if(fs.q.length<3)return;
-  fs.t=setTimeout(()=>offSearch(fs.q),450);
+  fs.t=setTimeout(()=>offSearch(fs.q,1),400);
 }
-async function offFetch(q,spain,signal){
-  const u="https://es.openfoodfacts.org/cgi/search.pl?action=process&json=1&search_simple=1&page_size=60&sort_by=unique_scans_n&fields=code,product_name,product_name_es,brands,nutriments,serving_quantity&search_terms="+encodeURIComponent(q)+(spain?"&tagtype_0=countries&tag_contains_0=contains&tag_0=spain":"");
-  const r=await fetch(u,{signal});const j=await r.json();
-  return (j.products||[]).map(x=>offToProduct(x,x.code)).filter(x=>x.name&&x.kcal!=null&&x.kcal<=900);
+const OFF_FIELDS="code,product_name,product_name_es,generic_name_es,brands,categories,categories_tags,countries_tags,nutriments,serving_quantity";
+async function salFetch(q,page,spain,signal){
+  const words=NORM(q).split(" ").filter(t=>t&&!STOP.has(t));
+  const base=words.length>1?words.join(" AND "):words.join("");
+  const qq=spain?"("+base+") AND countries_tags:\"en:spain\"":base;
+  const r=await fetch("https://search.openfoodfacts.org/search?q="+encodeURIComponent(qq)+"&langs=es&page_size=100&page="+page+"&fields="+OFF_FIELDS,{signal});
+  if(!r.ok)throw new Error("sal "+r.status);const j=await r.json();
+  const list=(j.hits||[]).map(x=>offToProduct(x,x.code));if(spain)list.forEach(x=>x.es=true);
+  return {list,more:(j.page_count||0)>page};
 }
-async function offSearch(q){
+async function legacyFetch(q,page,spain,signal){
+  const u="https://es.openfoodfacts.org/cgi/search.pl?action=process&json=1&search_simple=1&page_size=100&page="+page+"&fields="+OFF_FIELDS+"&search_terms="+encodeURIComponent(q)+(spain?"&tagtype_0=countries&tag_contains_0=contains&tag_0=spain":"");
+  const r=await fetch(u,{signal});if(!r.ok)throw new Error("legacy "+r.status);const j=await r.json();
+  const list=(j.products||[]).map(x=>offToProduct(x,x.code));if(spain)list.forEach(x=>x.es=true);
+  return {list,more:(j.count||0)>page*100};
+}
+async function offSearch(q,page){
   const ctl=new AbortController();fs.ctl=ctl;
+  const sq=storeQ(q);
   const codes=new Set(Object.values(products()).map(p=>p.code).filter(Boolean));
-  const seen=new Set();
-  const clean=list=>rank(list,q,x=>x.name+" "+(x.brand||"")).filter(x=>{const k=NORM(x.name+" "+x.brand);if(seen.has(k)||codes.has(x.code))return false;seen.add(k);return true});
+  const ok=x=>x.name&&x.kcal!=null&&x.kcal<=900;
+  const clean=list=>relaxedRank(list.filter(ok),sq,x=>x.name+" "+x.brand+" "+x.cat,x=>x.brand).filter(x=>{const k=x.code||NORM(x.name+" "+x.brand);if(fs.seen.has(k)||codes.has(x.code))return false;fs.seen.add(k);return true});
   try{
-    let out=clean(await offFetch(q,true,ctl.signal));
-    if(out.length<5)out=out.concat(clean(await offFetch(q,false,ctl.signal)));
+    const jobs=[salFetch(sq,page,true,ctl.signal),legacyFetch(sq,page,true,ctl.signal),salFetch(sq,page,false,ctl.signal),legacyFetch(sq,page,false,ctl.signal)];
+    const rs=await Promise.allSettled(jobs);
     if(fs.ctl!==ctl)return;
-    fs.o=out.slice(0,15);fs.status=fs.o.length?"":(fs.h.length||fs.b.length?"":"Sin resultados. Prueba con otra palabra o créalo a mano.");
-  }catch(e){if(e&&e.name==="AbortError")return;fs.status="No se pudo buscar en Open Food Facts (¿sin conexión?).";}
+    let out=[],more=false,anyOk=false;
+    rs.forEach(r=>{if(r.status==="fulfilled"){anyOk=true;out=out.concat(r.value.list);more=more||r.value.more}});
+    const res=clean(out);
+    if(!anyOk)throw new Error("net");
+    fs.o=fs.o.concat(res);fs.more=more;fs.page=page;fs.total=fs.o.length;
+    fs.status=fs.o.length?"":(fs.h.length||fs.b.length?"No hay productos de marca con ese nombre.":"Sin resultados. Prueba con otra palabra, escanea el código o créalo a mano.");
+  }catch(e){if(e&&e.name==="AbortError")return;fs.status="No se pudo conectar con la base de datos de productos. Revisa la conexión.";}
   fs.ctl=null;drawResults();
 }
 function openSearch(forCode,initial){
   fs.forCode=forCode||"";
   openSheet(`<div class="row between"><h3>${forCode?"¿Qué producto es?":"Añadir alimento"}</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
   ${forCode?`<div class="status err">El código ${esc(forCode)} no está en Open Food Facts. Búscalo por nombre y quedará asociado a este código para la próxima vez.</div>`:""}
-  <input type="search" id="fsq" data-in="fs" placeholder="huevo, arroz, HSN evowhey…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" value="${esc(initial||"")}" autofocus>
+  <input type="search" id="fsq" data-in="fs" placeholder="huevo, verduras congeladas mercadona, HSN…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" value="${esc(initial||"")}" autofocus>
   <div class="list results" id="fsres"></div>
   <div class="row wrap" style="margin-top:4px"><button class="btn sm ghost" data-act="scan">${ICON.scan}Escanear</button><button class="btn sm ghost" data-act="newprod">${ICON.plus}Crear a mano</button></div>`,()=>{if(fs.ctl)fs.ctl.abort()});
   doSearch(initial||"");
@@ -1059,6 +1132,7 @@ const ACT={
   photocode(){stopScan();$("#filePhoto").click()},
   searchoff(){const code=$("#p_code").value.replace(/\D/g,""),name=$("#p_name").value.trim();openSearch(code,name)},
   search(){openSearch("","")},
+  fsmore(){fs.status="Cargando más…";fs.more=false;drawResults();offSearch(fs.q,(fs.page||1)+1)},
   fspick(a){const id=ensureProduct(a.dataset.src,+a.dataset.i);if(!id)return;const p=products()[id];gramsProd=p;fs.forCode="";$("#sheet").innerHTML=gramsSheet(p);sheetClose=null;updGramsPrev();$("#sheet").scrollTop=0},
   fsquick(a){const id=ensureProduct(a.dataset.src,+a.dataset.i);if(!id)return;const p=products()[id];const g=defG(p);addEntry(p,g);fs.forCode="";closeSheet();toast("Añadido: "+(unitTxt(p.unit,g)||nf(g)+" g · ")+p.name)},
   newprod(){openProduct({},"Para productos sin código: búscalo por nombre o rellena los valores de la etiqueta.")},
@@ -1086,9 +1160,36 @@ const ACT={
   thisweek(){ui.week=monday(today());ui.gday=wd(today());render()},
   gday(a){ui.gday=+a.dataset.n;render()},
   edit(){ui.edit=!ui.edit;render()},
-  addset(a){const date=addDays(ui.week,ui.gday-1),ex=routineDay(ui.gday).items[+a.dataset.k];const e=gymEx(date,ex);const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<rows)e.sets.push({w:"",r:""});e.sets.push({w:"",r:""});gymSave(date);render()},
-  delset(a){const date=addDays(ui.week,ui.gday-1),ex=routineDay(ui.gday).items[+a.dataset.k];const e=gymEx(date,ex);const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<rows)e.sets.push({w:"",r:""});e.sets.splice(+a.dataset.j,1);gymSave(date);render()},
-  copylast(a){const date=addDays(ui.week,ui.gday-1),ex=routineDay(ui.gday).items[+a.dataset.k];const k=slug(ex.name);const hist=(allSessions()[k]||[]).filter(s=>s.date<date&&s.sets.length);const last=hist[hist.length-1];if(!last)return;const e=gymEx(date,ex);e.sets=last.sets.map(s=>({w:s.w,r:s.r}));gymSave(date);render()},
+  addset(a){const date=addDays(ui.week,ui.gday-1),ex=curItems()[+a.dataset.k];const e=gymEx(date,ex);const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<rows)e.sets.push({w:"",r:""});e.sets.push({w:"",r:""});gymSave(date);render()},
+  delset(a){const date=addDays(ui.week,ui.gday-1),ex=curItems()[+a.dataset.k];const e=gymEx(date,ex);const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<rows)e.sets.push({w:"",r:""});e.sets.splice(+a.dataset.j,1);gymSave(date);render()},
+  copylast(a){const date=addDays(ui.week,ui.gday-1),ex=curItems()[+a.dataset.k];const k=slug(ex.name);const hist=(allSessions()[k]||[]).filter(s=>s.date<date&&s.sets.length);const last=hist[hist.length-1];if(!last)return;const e=gymEx(date,ex);e.sets=last.sets.map(s=>({w:s.w,r:s.r}));gymSave(date);render()},
+  addexday(){
+    const known=[...new Set(Object.values(routine()).flatMap(d=>(d.items||[]).map(x=>x.name)).concat(Object.values(allSessions()).map(a=>a[a.length-1].name)))].sort((a,b)=>a.localeCompare(b,"es"));
+    openSheet(`<div class="row between"><h3>Añadir ejercicio</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
+    <div class="field"><label class="lbl" for="nx_name">Ejercicio</label><input type="text" id="nx_name" list="nx_list" placeholder="Escribe o elige uno que ya hayas hecho" autofocus><datalist id="nx_list">${known.map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist></div>
+    <div class="editrow" style="border:0;padding:0"><div class="mini"><input type="number" inputmode="numeric" id="nx_sets" value="3" aria-label="Series"><input type="text" id="nx_reps" value="8-12" aria-label="Repeticiones objetivo">
+      <select id="nx_type" aria-label="Tipo"><option value="peso">Peso + reps</option><option value="reps">Solo reps</option><option value="tiempo">Minutos</option></select></div></div>
+    <div class="lbl">¿Dónde lo añado?</div>
+    <div class="row wrap"><button class="btn primary grow" data-act="addexsave" data-scope="routine">Todos los ${DLONG[ui.gday-1].toLowerCase()}</button><button class="btn grow" data-act="addexsave" data-scope="day">Solo el ${fmtShort(curDate())}</button></div>
+    <p class="small muted" style="margin:0">Si usas el mismo nombre que un ejercicio que ya has hecho, verás tu última marca y su progreso.</p>`)},
+  addexsave(a){const name=$("#nx_name").value.trim();if(!name){$("#nx_name").focus();return}
+    const it={id:uid(),name,sets:num($("#nx_sets").value)||3,reps:$("#nx_reps").value.trim()||"8-12",type:$("#nx_type").value,hint:""};
+    const date=curDate();const d=gymDayRead(date);
+    if(d.skip&&d.skip.includes(slug(name))){const g=gymDay(date);g.skip=g.skip.filter(x=>x!==slug(name));gymSave(date)}
+    if(a.dataset.scope==="routine"){routineEnsure(ui.gday).items.push(it);save("routine")}
+    else{const g=gymDay(date);g.extra=g.extra||[];g.extra.push(it);gymSave(date)}
+    closeSheet();toast("Añadido: "+name)},
+  rmex(a){const ex=curItems()[+a.dataset.k];if(!ex)return;const date=curDate();
+    if(ex.extra){const g=gymDay(date);const i=(g.extra||[]).findIndex(x=>x.id===ex.id);if(i<0)return;const [it]=g.extra.splice(i,1);gymSave(date);render();toast("Quitado: "+ex.name,()=>{gymDay(date).extra.splice(i,0,it);gymSave(date)});return}
+    openSheet(`<div class="row between"><h3>Quitar ejercicio</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
+    <p style="margin:0;font-weight:600">${esc(ex.name)}</p>
+    <button class="btn" data-act="rmexday" data-k="${a.dataset.k}">Solo este día (${fmtShort(date)})</button>
+    <button class="btn primary" data-act="rmexroutine" data-k="${a.dataset.k}">De todos los ${DLONG[ui.gday-1].toLowerCase()}</button>
+    <p class="small muted" style="margin:0">Lo que ya registraste de este ejercicio se conserva en tu historial y en Progreso.</p>`)},
+  rmexday(a){const ex=curItems()[+a.dataset.k];if(!ex)return;const date=curDate();const g=gymDay(date);g.skip=g.skip||[];g.skip.push(slug(ex.name));gymSave(date);closeSheet();
+    toast("Quitado solo este día",()=>{const gg=gymDay(date);gg.skip=(gg.skip||[]).filter(x=>x!==slug(ex.name));gymSave(date)})},
+  rmexroutine(a){const ex=curItems()[+a.dataset.k];if(!ex)return;const d=routineEnsure(ui.gday);const i=d.items.findIndex(x=>x.id===ex.id);if(i<0)return;const [it]=d.items.splice(i,1);save("routine");closeSheet();const n=ui.gday;
+    toast("Quitado de la rutina",()=>{routineEnsure(n).items.splice(i,0,it);save("routine")})},
   addex(){const d=routineEnsure(ui.gday);d.items=d.items||[];d.items.push({id:uid(),name:"Nuevo ejercicio",sets:3,reps:"8-12",type:"peso",hint:""});save("routine");render();setTimeout(()=>{const el=$("#en-"+(d.items.length-1));if(el){el.focus();el.select()}},50)},
   delex(a){const d=routineEnsure(ui.gday);const i=+a.dataset.k;const [it]=d.items.splice(i,1);save("routine");render();const n=ui.gday;toast("Ejercicio quitado de la rutina (su historial se conserva)",()=>{routineEnsure(n).items.splice(i,0,it);save("routine")})},
   mv(a){const d=routineEnsure(ui.gday);const i=+a.dataset.k,j=i+ +a.dataset.n;if(j<0||j>=d.items.length)return;[d.items[i],d.items[j]]=[d.items[j],d.items[i]];save("routine");render()},
@@ -1110,8 +1211,9 @@ const IN={
   q(el){ui.q=el.value;const pos=el.selectionStart;render();const n=$("#q");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}},
   steps(el){const d=nut(ui.date);d.steps=num(el.value);nutSave(ui.date)},
   grams(){updGramsPrev()},
-  set(el){const date=addDays(ui.week,ui.gday-1),ex=routineDay(ui.gday).items[+el.dataset.k];if(!ex)return;const e=gymEx(date,ex);e.type=ex.type||"peso";e.name=ex.name;const j=+el.dataset.j;const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<Math.max(rows,j+1))e.sets.push({w:"",r:""});e.sets[j][el.dataset.f]=el.value===""?"":num(el.value);gymSave(date)},
-  note(el){const date=addDays(ui.week,ui.gday-1),ex=routineDay(ui.gday).items[+el.dataset.k];if(!ex)return;const e=gymEx(date,ex);e.note=el.value;gymSave(date)},
+  set(el){const date=addDays(ui.week,ui.gday-1),ex=curItems()[+el.dataset.k];if(!ex)return;const e=gymEx(date,ex);e.type=ex.type||"peso";e.name=ex.name;const j=+el.dataset.j;const rows=Math.max(e.sets.length,num(ex.sets)||1);while(e.sets.length<Math.max(rows,j+1))e.sets.push({w:"",r:""});e.sets[j][el.dataset.f]=el.value===""?"":num(el.value);gymSave(date)},
+  note(el){const date=addDays(ui.week,ui.gday-1),ex=curItems()[+el.dataset.k];if(!ex)return;const e=gymEx(date,ex);e.note=el.value;gymSave(date)},
+  daynote(el){const date=curDate();gymDay(date).note=el.value;gymSave(date)},
   rtitle(el){routineEnsure(ui.gday).title=el.value;save("routine")},
   rnote(el){routineEnsure(ui.gday).note=el.value;save("routine")},
   ename(el){routineEnsure(ui.gday).items[+el.dataset.k].name=el.value;save("routine")},

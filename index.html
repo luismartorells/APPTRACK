@@ -302,9 +302,10 @@ function save(id){
 const DEFAULT_ROUTINE={days:{
 "1":{title:"Push · Pecho, hombros, tríceps",note:"",items:[
  {id:"l1",name:"Press de pecho inclinado (máquina o mancuernas)",sets:3,reps:"8-12",type:"peso",hint:""},
+ {id:"l7",name:"Pec deck",sets:3,reps:"8-12",type:"peso",hint:""},
  {id:"l2",name:"Elevaciones laterales",sets:4,reps:"12-15",type:"peso",hint:"Mancuernas o polea"},
  {id:"l3",name:"Extensiones de tríceps en polea alta (cuerda)",sets:3,reps:"10-14",type:"peso",hint:""},
- {id:"l4",name:"Press francés",sets:3,reps:"10-14",type:"peso",hint:"Polea baja o mancuernas"},
+ {id:"l8",name:"Patadas de tríceps unilaterales",sets:3,reps:"10-12",type:"peso",hint:"Un brazo cada vez"},
  {id:"l5",name:"Flexión de cuello",sets:3,reps:"20-25",type:"reps",hint:"Noche, en la cama: cabeza colgando, barbilla al pecho"},
  {id:"l6",name:"Extensión de cuello",sets:3,reps:"20-25",type:"reps",hint:"Noche, en la cama: boca abajo"}]},
 "2":{title:"Pull · Espalda, bíceps, antebrazo y postura",note:"",items:[
@@ -340,6 +341,21 @@ const DEFAULT_ROUTINE={days:{
 function initStore(){
   lsLoad();
   if(!docs.routine){docs.routine=JSON.parse(JSON.stringify(DEFAULT_ROUTINE));save("routine")}
+  /* cambios de rutina pedidos (se aplican una sola vez sobre la rutina guardada) */
+  try{const done=(docs.settings&&docs.settings.migr)||[];
+    if(!done.includes("lunes-pecdeck-patadas")){
+      const d=routineEnsure(1);d.items=d.items||[];
+      const fi=d.items.findIndex(x=>slug(x.name)===slug("Press francés"));
+      const pat={id:"l8",name:"Patadas de tríceps unilaterales",sets:3,reps:"10-12",type:"peso",hint:"Un brazo cada vez"};
+      if(fi>=0)d.items.splice(fi,1,pat);else if(!d.items.some(x=>slug(x.name)===slug(pat.name)))d.items.push(pat);
+      if(!d.items.some(x=>slug(x.name)===slug("Pec deck"))){
+        const pi=d.items.findIndex(x=>/press de pecho/i.test(x.name));
+        d.items.splice(pi>=0?pi+1:0,0,{id:"l7",name:"Pec deck",sets:3,reps:"8-12",type:"peso",hint:""});
+      }
+      docs.settings=Object.assign({},docs.settings||{},{migr:done.concat("lunes-pecdeck-patadas")});
+      save("routine");
+    }
+  }catch(e){}
   /* pasos desde un Atajo de iPhone: ...?pasos=8432 */
   try{const u=new URL(location.href);const p=u.searchParams.get("pasos")||u.searchParams.get("steps");
     if(p!==null&&isFinite(+p)){const d=nut(today());d.steps=Math.round(+p);nutSave(today());ui.tab="nutri";ui.date=today();

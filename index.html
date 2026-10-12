@@ -207,6 +207,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-of
 .scanbox .ret{position:absolute;left:10%;right:10%;top:38%;height:24%;border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .scanbox .ret::after{content:"";position:absolute;left:6%;right:6%;top:50%;height:2px;background:#E35A52;box-shadow:0 0 8px #E35A52}
 .results .item{cursor:pointer}
+.searchbtn{width:100%;display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--sunk);border-radius:12px;padding:11px 12px;color:var(--muted);font-size:16px;text-align:left;min-height:46px}
+.searchbtn svg{width:18px;height:18px;flex:none}
+.res{cursor:pointer;border-radius:10px}
+.res:active{background:var(--sunk)}
+.res .meta b{color:var(--ink);font-weight:600}
+.qadd{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink)}
+.qadd svg{width:18px;height:18px}
+.reslbl{margin:12px 0 2px}
+.src{font-size:11px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--sunk);color:var(--muted);margin-left:6px;vertical-align:1px}
 @media (max-width:380px){.big{font-size:50px}.grid4{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-reduced-motion:no-preference){.bar span,.goalbar span{transition:width .35s ease}}
 </style>
@@ -462,18 +471,18 @@ function viewNutri(){
 
   <section class="card"><div class="row between"><h3>Comida</h3><span class="kc">${nf(t.kcal)} kcal</span></div>
     <div class="row wrap" style="margin-top:12px">
+      <button class="searchbtn" data-act="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Buscar alimento: huevo, arroz, pollo…</button>
       <button class="btn primary grow" data-act="scan">${ICON.scan}Escanear código</button>
-      <button class="btn grow" data-act="newprod">${ICON.plus}Producto nuevo</button>
+      <button class="btn grow" data-act="newprod">${ICON.plus}Crear a mano</button>
     </div>
     
-    ${plist.length?`<div class="lbl" style="margin:6px 0 8px">Tus productos · toca para añadir</div>
-    <input type="search" id="q" data-in="q" placeholder="Buscar en tu historial" value="${esc(ui.q)}" style="margin-bottom:10px">
+    ${plist.length?`<div class="lbl" style="margin:14px 0 8px">Recientes · toca para añadir</div>
     <div class="chips">${shown.map(p=>`<button class="chip" data-act="pick" data-id="${esc(p.id)}"><span>${esc(p.name)}</span><em>${nf(p.kcal)} kcal/100</em></button>`).join("")||`<span class="muted small">Nada coincide con “${esc(ui.q)}”.</span>`}</div>
     ${!q&&filtered.length>12?`<button class="btn ghost sm" style="margin-top:8px" data-act="showall">${ui.showAll?"Ver menos":"Ver los "+filtered.length}</button>`:""}`
     :`<p class="muted small" style="margin:6px 0 0">Cada producto que escanees se queda guardado aquí para añadirlo con un toque.</p>`}
     <div class="hr"></div>
     <div class="lbl" style="margin-bottom:4px">Ingerido ${ui.date===today()?"hoy":"este día"}</div>
-    <div class="list">${d.foods.length?d.foods.map(f=>{const v=foodVals(f);return `<div class="item"><div class="grow"><div class="name">${esc(f.name)}</div><div class="meta">${nf(f.g)} g · P ${nf(v.p,1)} · H ${nf(v.c,1)} · G ${nf(v.f,1)}</div></div><button class="btn sm ghost" data-act="editfood" data-id="${f.id}" aria-label="Cambiar gramos"><span class="kc">${nf(v.kcal)}</span></button><button class="x" data-act="delfood" data-id="${f.id}" aria-label="Quitar">${ICON.x}</button></div>`}).join(""):`<div class="empty small">Todavía no has apuntado nada.</div>`}</div>
+    <div class="list">${d.foods.length?d.foods.map(f=>{const v=foodVals(f);return `<div class="item"><div class="grow"><div class="name">${esc(f.name)}</div><div class="meta">${unitTxt(f.u,f.g)}${nf(f.g)} g · P ${nf(v.p,1)} · H ${nf(v.c,1)} · G ${nf(v.f,1)}</div></div><button class="btn sm ghost" data-act="editfood" data-id="${f.id}" aria-label="Cambiar gramos"><span class="kc">${nf(v.kcal)}</span></button><button class="x" data-act="delfood" data-id="${f.id}" aria-label="Quitar">${ICON.x}</button></div>`}).join(""):`<div class="empty small">Todavía no has apuntado nada.</div>`}</div>
   </section>
 
   <section class="card"><div class="row between"><h3>Agua</h3><span class="mval">${nf(t.water/1000,2)}<small> / ${nf(s.goalWater/1000,1)} L</small></span></div>
@@ -664,7 +673,7 @@ function viewTasks(){
 
 /* ---------- hoja modal ---------- */
 let sheetClose=null;
-function openSheet(html,onClose){$("#sheet").innerHTML=html;$("#overlay").hidden=false;sheetClose=onClose||null;const f=$("#sheet").querySelector("[autofocus]");if(f)setTimeout(()=>f.focus(),60)}
+function openSheet(html,onClose){$("#sheet").innerHTML=html;$("#overlay").hidden=false;sheetClose=onClose||null;const f=$("#sheet").querySelector("[autofocus]");if(f){try{f.focus()}catch(e){}setTimeout(()=>f.focus(),60)}}
 function closeSheet(){$("#overlay").hidden=true;$("#sheet").innerHTML="";const c=sheetClose;sheetClose=null;if(c)c();render()}
 $("#overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeSheet()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#overlay").hidden)closeSheet()});
@@ -758,28 +767,218 @@ async function lookupCode(code){
     const items=products();const id="c"+code;
     items[id]=Object.assign({},p,{id,p:p.p||0,c:p.c||0,f:p.f||0});save("products");
     gramsProd=items[id];$("#sheet").innerHTML=gramsSheet(items[id]);updGramsPrev();
-    sheetClose=null;setTimeout(()=>{const g=$("#g_in");if(g)g.focus()},60);
+    sheetClose=null;
   }else if(p){
     $("#sheet").innerHTML=prodForm(Object.assign({},p),"Encontrado, pero le faltan datos nutricionales. Complétalos una vez y queda guardado.",true);
   }else{
-    $("#sheet").innerHTML=prodForm({code},netErr?"Sin conexión con Open Food Facts. Rellénalo a mano o inténtalo luego.":"Este código aún no está en Open Food Facts (pasa con algunos productos de marcas como HSN). Escribe el nombre y pulsa Buscar, o copia los valores de la etiqueta: solo tendrás que hacerlo esta vez.",true);
+    if(netErr)$("#sheet").innerHTML=prodForm({code},"Sin conexión con Open Food Facts. Rellénalo a mano o inténtalo luego.",true);
+    else{closeSheet();openSearch(code,"")}
   }
 }
-async function searchOFF(){
-  const q=$("#p_name").value.trim();const box=$("#offres");
-  if(!q){pstatus("Escribe el nombre del producto para buscarlo.",true);return}
-  pstatus("Buscando en Open Food Facts…");box.innerHTML="";
-  try{
-    const r=await fetch("https://es.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=12&fields=code,product_name,product_name_es,brands,nutriments,serving_quantity");
-    const j=await r.json();
-    const list=(j.products||[]).map(x=>offToProduct(x,x.code)).filter(x=>x.name&&x.kcal!=null);
-    lastResults=list;
-    if(!list.length){pstatus("Sin resultados. Prueba con otras palabras o rellénalo a mano.",true);return}
-    pstatus("Toca el que sea:");
-    box.innerHTML=list.map((x,i)=>`<div class="item" data-act="pickres" data-n="${i}"><div class="grow"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.brand||"")}${x.brand?" · ":""}${nf(x.kcal)} kcal · P ${nf(x.p,1)} · H ${nf(x.c,1)} · G ${nf(x.f,1)}</div></div></div>`).join("");
-  }catch(e){pstatus("No se pudo buscar ahora. Revisa la conexión.",true)}
+/* ---------- buscador de alimentos ---------- */
+const B=(name,kcal,p,c,f,u,k)=>{const o={name,kcal,p,c,f,k:k||""};if(u){const [s1,p1,g]=u.split("|");if(+g)o.unit={s:s1,p:p1,g:+g};else o.serving=+p1||null}return o};
+const BASE=[
+B("Huevo entero",143,12.6,0.7,9.5,"huevo|huevos|55","huevos"),
+B("Huevo cocido",155,12.6,1.1,10.6,"huevo|huevos|50","duro"),
+B("Huevo frito",196,13.6,0.8,14.8,"huevo|huevos|50"),
+B("Clara de huevo",52,10.9,0.7,0.2,"clara|claras|33","claras liquidas"),
+B("Yema de huevo",322,15.9,3.6,26.5,"yema|yemas|17"),
+B("Tortilla francesa",154,10.6,0.6,11.7,"","huevo"),
+B("Tortilla de patatas",160,6,13,9.5,"ración|150","huevo patata"),
+B("Pechuga de pollo cruda",120,22.5,0,2.6,"","pollo"),
+B("Pechuga de pollo a la plancha",165,31,0,3.6,"","pollo cocinada"),
+B("Muslo de pollo sin piel",121,19.7,0,4.1,"","pollo contramuslo"),
+B("Pollo asado con piel",207,27,0,11,"","pollo"),
+B("Nuggets de pollo",290,15,17,18,"","pollo empanado"),
+B("Pechuga de pavo cruda",114,23.7,0,1.5,"","pavo"),
+B("Fiambre de pavo",100,19,1.5,2,"loncha|lonchas|15","pavo embutido"),
+B("Ternera magra (filete)",131,21.5,0,5,"","carne vaca filete"),
+B("Carne picada de ternera",215,18.6,0,15,"","carne hamburguesa vaca"),
+B("Lomo de cerdo",143,21,0,6.5,"","cerdo carne"),
+B("Jamón serrano",241,30.5,0.5,13,"loncha|lonchas|15","jamon iberico embutido"),
+B("Jamón cocido (york)",110,18,1.5,3.5,"loncha|lonchas|20","jamon york"),
+B("Chorizo",455,22,2,40,"","embutido"),
+B("Salchichas tipo Frankfurt",290,12,2,26,"salchicha|salchichas|40",""),
+B("Salmón",208,20,0,13.4,"","pescado"),
+B("Atún al natural (lata, escurrido)",116,26,0,1,"lata|latas|56","atun pescado"),
+B("Atún en aceite (lata, escurrido)",198,29,0,8.2,"lata|latas|56","atun pescado"),
+B("Merluza",72,16,0,1,"","pescado"),
+B("Bacalao",82,18,0,0.7,"","pescado"),
+B("Gambas / langostinos cocidos",99,24,0.2,0.3,"","marisco"),
+B("Sardinas en aceite (lata)",208,24.6,0,11.5,"","pescado"),
+B("Tofu",130,13,2,7.5,"",""),
+B("Arroz blanco (crudo)",360,6.8,79,0.6,"ración|80","arroz"),
+B("Arroz blanco cocido",130,2.7,28,0.3,"","arroz"),
+B("Arroz integral (crudo)",362,7.5,76,2.7,"ración|80","arroz"),
+B("Pasta (cruda)",359,12.5,72,1.5,"ración|80","macarrones espaguetis"),
+B("Pasta cocida",158,5.8,31,0.9,"","macarrones espaguetis"),
+B("Cuscús (crudo)",376,12.8,72,0.6,"ración|70",""),
+B("Quinoa (cruda)",368,14.1,64,6.1,"ración|70",""),
+B("Copos de avena",372,13.5,59,7,"ración|50","avena"),
+B("Pan blanco (barra)",261,8.5,51.5,1.6,"ración|60","pan"),
+B("Pan de molde",265,8.5,47,3.8,"rebanada|rebanadas|25","pan"),
+B("Pan integral",247,10,41,3.4,"rebanada|rebanadas|30","pan"),
+B("Tortitas de arroz",387,8,80,3,"tortita|tortitas|8",""),
+B("Cereales tipo corn flakes",378,7,84,0.9,"ración|40","cereales"),
+B("Granola",450,10,60,18,"ración|40","cereales"),
+B("Galletas María",440,7,73,12,"galleta|galletas|6","galleta"),
+B("Croissant",406,8,46,21,"croissant|croissants|60",""),
+B("Patata (cruda)",77,2,15.7,0.1,"",""),
+B("Patata cocida",86,1.9,18.5,0.1,"",""),
+B("Patatas fritas caseras",312,3.4,41,15,"",""),
+B("Patatas fritas de bolsa",536,6.5,50,34,"","snack"),
+B("Boniato",86,1.6,17.5,0.1,"","batata"),
+B("Lentejas (crudas)",314,24,48,1.5,"ración|70","legumbre"),
+B("Lentejas cocidas",105,8.5,14,0.4,"","legumbre bote"),
+B("Garbanzos cocidos",115,7,13.6,2.5,"","legumbre bote"),
+B("Alubias cocidas",85,6,11,0.5,"","judias legumbre bote"),
+B("Leche entera",63,3.1,4.7,3.6,"vaso|vasos|250",""),
+B("Leche semidesnatada",46,3.2,4.7,1.6,"vaso|vasos|250",""),
+B("Leche desnatada",34,3.3,4.8,0.1,"vaso|vasos|250",""),
+B("Bebida de avena",45,0.8,7,1.4,"vaso|vasos|250","leche"),
+B("Yogur natural",61,3.5,4.7,3.3,"yogur|yogures|125",""),
+B("Yogur natural desnatado",45,4.5,6,0.1,"yogur|yogures|125",""),
+B("Yogur griego natural",122,3.5,4,10,"yogur|yogures|125",""),
+B("Skyr natural",63,11,4,0.2,"tarrina|tarrinas|150","yogur proteico"),
+B("Queso fresco batido 0%",47,8,3.8,0.1,"","queso"),
+B("Queso fresco tipo Burgos",180,12,3,13,"","queso"),
+B("Queso curado / manchego",420,28,0.5,34,"loncha|lonchas|15","queso"),
+B("Queso mozzarella",250,18,1.5,19,"","queso"),
+B("Requesón",96,13.6,4,3,"","queso"),
+B("Kéfir",61,3.4,4,3.5,"vaso|vasos|200",""),
+B("Mantequilla",740,0.7,0.6,82,"",""),
+B("Aceite de oliva",899,0,0,99.9,"cucharada|cucharadas|13","aove"),
+B("Plátano",94,1.2,20,0.3,"plátano|plátanos|120","platano banana fruta"),
+B("Manzana",52,0.3,12,0.2,"manzana|manzanas|180","fruta"),
+B("Naranja",45,0.9,9,0.1,"naranja|naranjas|150","fruta"),
+B("Pera",57,0.4,12,0.1,"pera|peras|170","fruta"),
+B("Kiwi",61,1.1,12,0.5,"kiwi|kiwis|75","fruta"),
+B("Fresas",32,0.7,6,0.3,"","fruta"),
+B("Arándanos",57,0.7,12,0.3,"","fruta"),
+B("Uvas",69,0.7,16,0.2,"","fruta"),
+B("Sandía",30,0.6,7,0.2,"","fruta"),
+B("Melón",34,0.8,8,0.2,"","fruta"),
+B("Piña",50,0.5,11,0.1,"","fruta"),
+B("Mango",60,0.8,14,0.4,"","fruta"),
+B("Dátiles",282,2.5,64,0.4,"dátil|dátiles|8","fruta seca"),
+B("Pasas",299,3,79,0.5,"","fruta seca"),
+B("Aguacate",160,2,1.8,14.7,"aguacate|aguacates|140",""),
+B("Tomate",18,0.9,3.5,0.2,"tomate|tomates|120","verdura ensalada"),
+B("Lechuga",15,1.2,2,0.2,"","verdura ensalada"),
+B("Espinacas",23,2.9,1.4,0.4,"","verdura"),
+B("Brócoli",34,2.8,4,0.4,"","verdura brocoli"),
+B("Zanahoria",41,0.9,7.6,0.2,"zanahoria|zanahorias|80","verdura"),
+B("Cebolla",40,1.1,7.6,0.1,"","verdura"),
+B("Pimiento",31,1,4.6,0.3,"","verdura"),
+B("Calabacín",17,1.2,2.2,0.3,"","verdura"),
+B("Pepino",15,0.7,2.6,0.1,"","verdura ensalada"),
+B("Champiñones",22,3.1,0.5,0.3,"","setas"),
+B("Judías verdes",31,1.8,4.3,0.2,"","verdura"),
+B("Guisantes",81,5.4,10,0.4,"","verdura"),
+B("Maíz dulce (lata)",82,3,14,1.2,"",""),
+B("Gazpacho",50,1,3.5,3.4,"vaso|vasos|250",""),
+B("Almendras",590,21,6,52,"puñado|puñados|30","frutos secos"),
+B("Nueces",654,15.2,7,65,"puñado|puñados|30","frutos secos nuez"),
+B("Cacahuetes",585,25,9,49,"puñado|puñados|30","frutos secos mani"),
+B("Crema de cacahuete",600,25,12,50,"cucharada|cucharadas|16","mantequilla cacahuete"),
+B("Hummus",260,7,12,20,"",""),
+B("Chocolate negro 85%",580,12.5,19,46,"onza|onzas|10","chocolate"),
+B("Miel",304,0.3,82,0,"cucharada|cucharadas|21",""),
+B("Mermelada",250,0.4,60,0.1,"cucharada|cucharadas|15",""),
+B("Azúcar",400,0,100,0,"cucharadita|cucharaditas|5",""),
+B("Proteína whey (genérica)",390,78,6,6,"cacito|cacitos|30","proteina batido suero"),
+B("Caseína (genérica)",360,80,5,1.5,"cacito|cacitos|30","proteina batido"),
+B("Barrita de proteínas",356,32,30,12,"barrita|barritas|60","proteina"),
+B("Pizza",266,11,33,10,"",""),
+B("Zumo de naranja",45,0.7,10,0.2,"vaso|vasos|200",""),
+B("Coca-Cola",42,0,10.6,0,"lata|latas|330","refresco"),
+B("Coca-Cola Zero",0.3,0,0,0,"lata|latas|330","refresco"),
+B("Cerveza",43,0.4,3.5,0,"caña|cañas|200",""),
+B("Vino tinto",85,0.1,2.6,0,"copa|copas|150",""),
+B("Café solo",2,0.1,0,0,"taza|tazas|50","cafe")
+];
+const NORM=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+const STOP=new Set(["de","del","la","el","los","las","y","con","en","al","a","sin"]);
+function stem(w){w=w.replace(/ces$/,"z");if(w.length>3)w=w.replace(/s$/,"");if(w.length>3)w=w.replace(/[aeo]$/,"");return w}
+function matcher(q){
+  const toks=NORM(q).split(" ").filter(t=>t&&!STOP.has(t)).map(stem);
+  return text=>{
+    if(!toks.length)return -1;
+    const words=NORM(text).split(" ").filter(Boolean).map(stem);let score=0;
+    for(const t of toks){let best=-1;
+      words.forEach((w,j)=>{if(w===t)best=Math.max(best,j===0?6:4);else if(w.startsWith(t))best=Math.max(best,j===0?3:2)});
+      if(best<0)return -1;score+=best}
+    return score;
+  };
 }
-let lastResults=[];
+function rank(list,q,textOf){const m=matcher(q);return list.map(x=>({x,s:m(textOf(x))})).filter(o=>o.s>=0).sort((a,b)=>b.s-a.s).map(o=>o.x)}
+const defG=x=>x.lastG||(x.unit&&x.unit.g)||x.serving||100;
+function unitTxt(u,g){if(!u||!u.g||!g)return "";const n=g/u.g;if(Math.abs(n-Math.round(n))>0.01)return "";return nf(n)+" "+(Math.round(n)===1?u.s:u.p)+" · "}
+let fs={h:[],b:[],o:[],q:"",ctl:null,t:null,status:"",forCode:""};
+function resRow(x,src,i){
+  const g=defG(x),k=g/100;
+  return `<div class="item res" data-act="fspick" data-src="${src}" data-i="${i}"><div class="grow"><div class="name">${esc(x.name)}${src==="b"?'<span class="src">genérico</span>':""}</div><div class="meta">${x.brand?esc(x.brand)+" · ":""}${unitTxt(x.unit,g)||nf(g)+" g · "}<b>${nf(x.kcal*k)} kcal</b> · P ${nf(x.p*k,1)} · H ${nf(x.c*k,1)} · G ${nf(x.f*k,1)}</div></div><button class="qadd" data-act="fsquick" data-src="${src}" data-i="${i}" aria-label="Añadir ${esc(x.name)}">${ICON.plus}</button></div>`;
+}
+function drawResults(){
+  const box=$("#fsres");if(!box)return;
+  const sec=(t,arr,src)=>arr.length?`<div class="lbl reslbl">${t}</div>`+arr.map((x,i)=>resRow(x,src,i)).join(""):"";
+  let html=sec(fs.q?"Tus alimentos":"Recientes",fs.h,"h")+sec("Alimentos básicos",fs.b,"b")+sec("Productos de marca · Open Food Facts",fs.o,"o");
+  if(fs.status)html+=`<div class="status small" style="margin-top:8px">${esc(fs.status)}</div>`;
+  if(!html)html=`<div class="empty small">Escribe un alimento o una marca.</div>`;
+  box.innerHTML=html;
+}
+function doSearch(q){
+  fs.q=q.trim();clearTimeout(fs.t);if(fs.ctl){fs.ctl.abort();fs.ctl=null}
+  const hist=Object.values(products());
+  if(!fs.q){fs.h=hist.sort((a,b)=>(b.lastUsed||0)-(a.lastUsed||0)).slice(0,10);fs.b=[];fs.o=[];fs.status="";drawResults();return}
+  fs.h=rank(hist,fs.q,x=>x.name+" "+(x.brand||"")+" "+(x.k||"")).slice(0,8);
+  const hn=new Set(fs.h.map(x=>NORM(x.name)));
+  fs.b=rank(BASE,fs.q,x=>x.name+" "+x.k).filter(x=>!hn.has(NORM(x.name))).slice(0,8);
+  fs.o=[];fs.status=fs.q.length>=3?"Buscando productos de marca…":"";drawResults();
+  if(fs.q.length<3)return;
+  fs.t=setTimeout(()=>offSearch(fs.q),450);
+}
+async function offFetch(q,spain,signal){
+  const u="https://es.openfoodfacts.org/cgi/search.pl?action=process&json=1&search_simple=1&page_size=60&sort_by=unique_scans_n&fields=code,product_name,product_name_es,brands,nutriments,serving_quantity&search_terms="+encodeURIComponent(q)+(spain?"&tagtype_0=countries&tag_contains_0=contains&tag_0=spain":"");
+  const r=await fetch(u,{signal});const j=await r.json();
+  return (j.products||[]).map(x=>offToProduct(x,x.code)).filter(x=>x.name&&x.kcal!=null&&x.kcal<=900);
+}
+async function offSearch(q){
+  const ctl=new AbortController();fs.ctl=ctl;
+  const codes=new Set(Object.values(products()).map(p=>p.code).filter(Boolean));
+  const seen=new Set();
+  const clean=list=>rank(list,q,x=>x.name+" "+(x.brand||"")).filter(x=>{const k=NORM(x.name+" "+x.brand);if(seen.has(k)||codes.has(x.code))return false;seen.add(k);return true});
+  try{
+    let out=clean(await offFetch(q,true,ctl.signal));
+    if(out.length<5)out=out.concat(clean(await offFetch(q,false,ctl.signal)));
+    if(fs.ctl!==ctl)return;
+    fs.o=out.slice(0,15);fs.status=fs.o.length?"":(fs.h.length||fs.b.length?"":"Sin resultados. Prueba con otra palabra o créalo a mano.");
+  }catch(e){if(e&&e.name==="AbortError")return;fs.status="No se pudo buscar en Open Food Facts (¿sin conexión?).";}
+  fs.ctl=null;drawResults();
+}
+function openSearch(forCode,initial){
+  fs.forCode=forCode||"";
+  openSheet(`<div class="row between"><h3>${forCode?"¿Qué producto es?":"Añadir alimento"}</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
+  ${forCode?`<div class="status err">El código ${esc(forCode)} no está en Open Food Facts. Búscalo por nombre y quedará asociado a este código para la próxima vez.</div>`:""}
+  <input type="search" id="fsq" data-in="fs" placeholder="huevo, arroz, HSN evowhey…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" value="${esc(initial||"")}" autofocus>
+  <div class="list results" id="fsres"></div>
+  <div class="row wrap" style="margin-top:4px"><button class="btn sm ghost" data-act="scan">${ICON.scan}Escanear</button><button class="btn sm ghost" data-act="newprod">${ICON.plus}Crear a mano</button></div>`,()=>{if(fs.ctl)fs.ctl.abort()});
+  doSearch(initial||"");
+}
+function ensureProduct(src,i){
+  const x=(fs[src]||[])[i];if(!x)return null;
+  if(src==="h"&&!fs.forCode)return x.id;
+  const items=products();const code=fs.forCode||x.code||"";
+  let id=code?"c"+code:(src==="b"?"b-"+slug(x.name):"m"+uid());
+  if(src==="h"&&fs.forCode){/* asociar el código a un producto del historial */id="c"+code}
+  items[id]=Object.assign({},items[id]||{},{id,name:x.name,brand:x.brand||"",code,kcal:x.kcal||0,p:x.p||0,c:x.c||0,f:x.f||0,serving:x.serving||null,unit:x.unit||null,src:src==="b"?"base":src==="o"?"off":(x.src||"")});
+  if(x.lastG&&!items[id].lastG)items[id].lastG=x.lastG;
+  save("products");return id;
+}
+function addEntry(p,g){
+  nut(ui.date).foods.push({id:uid(),pid:p.id,name:p.name,g,k100:p.kcal,p100:p.p,c100:p.c,f100:p.f,u:p.unit||null});nutSave(ui.date);
+  p.lastG=g;p.lastUsed=Date.now();p.uses=(p.uses||0)+1;save("products");
+}
 function findByCode(code){return Object.values(products()).find(p=>p.code&&p.code===code)}
 function prodForm(p,msg,err){
   const isNew=!p.id;
@@ -788,8 +987,7 @@ function prodForm(p,msg,err){
   <div class="field"><label class="lbl" for="p_code">Código de barras</label><input type="text" inputmode="numeric" id="p_code" value="${esc(p.code||"")}" placeholder="Opcional: 8 a 14 dígitos"></div>
   <div class="field"><label class="lbl" for="p_name">Nombre</label><input type="text" id="p_name" value="${esc(p.name||"")}" placeholder="Yogur griego natural"></div>
   <div class="field"><label class="lbl" for="p_brand">Marca</label><input type="text" id="p_brand" value="${esc(p.brand||"")}" placeholder="Opcional"></div>
-  <button class="btn" data-act="searchoff">Buscar por nombre en Open Food Facts</button>
-  <div class="list results" id="offres"></div>
+  <button class="btn" data-act="searchoff">Buscar por nombre</button>
   <div class="lbl">Valores por 100 g</div>
   <div class="grid4">
     <div class="field"><label class="small muted" for="p_kcal">kcal</label><input type="number" inputmode="decimal" id="p_kcal" value="${p.kcal!=null?esc(p.kcal):""}"></div>
@@ -811,18 +1009,22 @@ function fillProd(r){
 }
 function pstatus(msg,err){const s=$("#pstatus");if(s){s.textContent=msg;s.className="status"+(err?" err":"")}}
 function gramsSheet(p,food){
-  const g=food?food.g:(p.lastG||p.serving||100);
+  const g=food?food.g:defG(p);
+  const u=p.unit;
+  const chips=u?[1,2,3,4].map(n=>({g:n*u.g,t:n+" "+(n===1?u.s:u.p)})):[];
+  [p.serving,p.lastG,50,100,150,200].filter(Boolean).forEach(v=>{if(!chips.some(c=>c.g===v))chips.push({g:v,t:nf(v)+" g",e:v===p.lastG?"última":v===p.serving?"porción":""})});
   return `<div class="row between"><h3 style="font-size:20px">${esc(p.name)}</h3><button class="x" data-act="close" aria-label="Cerrar">${ICON.x}</button></div>
   <div class="small muted">${p.brand?esc(p.brand)+" · ":""}Por 100 g: ${nf(p.kcal)} kcal · P ${nf(p.p,1)} · H ${nf(p.c,1)} · G ${nf(p.f,1)}</div>
-  <div class="field"><label class="lbl" for="g_in">Cantidad (g)</label><input type="number" inputmode="decimal" id="g_in" data-in="grams" value="${g}" autofocus></div>
-  <div class="chips">${[...new Set([p.serving,p.lastG,50,100,150,200].filter(Boolean))].slice(0,6).map(v=>`<button class="chip" data-act="setg" data-n="${v}"><span>${nf(v)} g</span>${v===p.serving?"<em>porción</em>":v===p.lastG?"<em>última</em>":""}</button>`).join("")}</div>
+  <div class="field"><label class="lbl" for="g_in">Cantidad (g)</label><input type="number" inputmode="decimal" id="g_in" data-in="grams" value="${g}"></div>
+  <div class="chips">${chips.slice(0,8).map(c=>`<button class="chip" data-act="setg" data-n="${c.g}"><span>${esc(c.t)}</span>${c.e?`<em>${c.e}</em>`:u&&!c.e&&/[a-z]/i.test(c.t.replace(/ g$/,""))?`<em>${nf(c.g)} g</em>`:""}</button>`).join("")}</div>
   <div class="card" style="background:var(--sunk)" id="gprev"></div>
   <div class="row"><button class="btn primary grow" data-act="${food?"savefood":"addfood"}" data-id="${esc(food?food.id:p.id)}">${food?"Guardar":"Añadir a "+(ui.date===today()?"hoy":fmtShort(ui.date))}</button><button class="btn" data-act="editprod" data-id="${esc(p.id)}">Editar producto</button></div>`;
 }
 let gramsProd=null;
 function updGramsPrev(){const el=$("#gprev");if(!el||!gramsProd)return;const g=num($("#g_in").value)/100;const p=gramsProd;
-  el.innerHTML=`<div class="row between wrap"><span class="big" style="font-size:40px;color:var(--ink)">${nf(p.kcal*g)}<small>kcal</small></span><span class="small"><b style="color:var(--red)">P ${nf(p.p*g,1)}</b> · <b style="color:var(--yellow)">H ${nf(p.c*g,1)}</b> · <b style="color:var(--blue)">G ${nf(p.f*g,1)}</b></span></div>`}
-function openGrams(pid,food){const p=products()[pid];if(!p){if(food){gramsProd={kcal:food.k100,p:food.p100,c:food.c100,f:food.f100,name:food.name};openSheet(gramsSheet(Object.assign({id:""},gramsProd),food));updGramsPrev();return}return}gramsProd=p;openSheet(gramsSheet(p,food));updGramsPrev()}
+  const ut=unitTxt(p.unit,num($("#g_in").value));
+  el.innerHTML=`${ut?`<div class="small muted" style="margin-bottom:2px">${esc(ut.replace(/ · $/,""))}</div>`:""}<div class="row between wrap"><span class="big" style="font-size:40px;color:var(--ink)">${nf(p.kcal*g)}<small>kcal</small></span><span class="small"><b style="color:var(--red)">P ${nf(p.p*g,1)}</b> · <b style="color:var(--yellow)">H ${nf(p.c*g,1)}</b> · <b style="color:var(--blue)">G ${nf(p.f*g,1)}</b></span></div>`}
+function openGrams(pid,food){const p=products()[pid];if(!p){if(food){gramsProd={kcal:food.k100,p:food.p100,c:food.c100,f:food.f100,name:food.name,unit:food.u||null};openSheet(gramsSheet(Object.assign({id:""},gramsProd),food));updGramsPrev();return}return}gramsProd=p;openSheet(gramsSheet(p,food));updGramsPrev()}
 
 /* ---------- acciones ---------- */
 const ACT={
@@ -855,8 +1057,10 @@ const ACT={
   scan(){openScanner()},
   manualcode(){const v=$("#manualCode").value;stopScan();lookupCode(v)},
   photocode(){stopScan();$("#filePhoto").click()},
-  searchoff(){searchOFF()},
-  pickres(a){const x=lastResults[+a.dataset.n];if(!x)return;const keep=$("#p_code").value.trim();fillProd(x);if(x.brand&&!$("#p_brand").value.trim())$("#p_brand").value=x.brand;if(!keep&&x.code)$("#p_code").value=x.code;$("#p_name").value=x.name;$("#offres").innerHTML="";pstatus("Datos cargados de Open Food Facts. Revisa y guarda.")},
+  searchoff(){const code=$("#p_code").value.replace(/\D/g,""),name=$("#p_name").value.trim();openSearch(code,name)},
+  search(){openSearch("","")},
+  fspick(a){const id=ensureProduct(a.dataset.src,+a.dataset.i);if(!id)return;const p=products()[id];gramsProd=p;fs.forCode="";$("#sheet").innerHTML=gramsSheet(p);sheetClose=null;updGramsPrev();$("#sheet").scrollTop=0},
+  fsquick(a){const id=ensureProduct(a.dataset.src,+a.dataset.i);if(!id)return;const p=products()[id];const g=defG(p);addEntry(p,g);fs.forCode="";closeSheet();toast("Añadido: "+(unitTxt(p.unit,g)||nf(g)+" g · ")+p.name)},
   newprod(){openProduct({},"Para productos sin código: búscalo por nombre o rellena los valores de la etiqueta.")},
   showall(){ui.showAll=!ui.showAll;render()},
   pick(a){openGrams(a.dataset.id)},
@@ -873,8 +1077,7 @@ const ACT={
   delprod(a){const items=products();const p=items[a.dataset.id];if(!p)return;delete items[a.dataset.id];save("products");closeSheet();toast("Producto borrado del historial",()=>{products()[p.id]=p;save("products")})},
   setg(a){$("#g_in").value=a.dataset.n;updGramsPrev()},
   addfood(a){const p=products()[a.dataset.id];const g=num($("#g_in").value);if(!p||!g)return;
-    nut(ui.date).foods.push({id:uid(),pid:p.id,name:p.name,g,k100:p.kcal,p100:p.p,c100:p.c,f100:p.f});nutSave(ui.date);
-    p.lastG=g;p.lastUsed=Date.now();p.uses=(p.uses||0)+1;save("products");closeSheet();toast(nf(g)+" g de "+p.name+" añadidos")},
+    addEntry(p,g);closeSheet();toast("Añadido: "+(unitTxt(p.unit,g)||nf(g)+" g · ")+p.name)},
   editfood(a){const f=nut(ui.date).foods.find(x=>x.id===a.dataset.id);if(f)openGrams(f.pid,f)},
   savefood(a){const f=nut(ui.date).foods.find(x=>x.id===a.dataset.id);const g=num($("#g_in").value);if(f&&g){f.g=g;nutSave(ui.date)}closeSheet()},
   delfood(a){const d=nut(ui.date);const i=d.foods.findIndex(x=>x.id===a.dataset.id);if(i<0)return;const [it]=d.foods.splice(i,1);nutSave(ui.date);render();const dt=ui.date;toast("Quitado: "+it.name,()=>{nut(dt).foods.splice(i,0,it);nutSave(dt)})},
@@ -903,6 +1106,7 @@ document.addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(
 
 /* ---------- entradas ---------- */
 const IN={
+  fs(el){doSearch(el.value)},
   q(el){ui.q=el.value;const pos=el.selectionStart;render();const n=$("#q");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}},
   steps(el){const d=nut(ui.date);d.steps=num(el.value);nutSave(ui.date)},
   grams(){updGramsPrev()},
@@ -925,6 +1129,7 @@ document.addEventListener("change",e=>{const el=e.target;if(!el.dataset||!el.dat
 });
 document.addEventListener("keydown",e=>{if(e.key!=="Enter")return;const id=e.target.id;
   if(id==="tnew"){e.preventDefault();ACT.addtask()}
+  else if(id==="fsq"){e.preventDefault();e.target.blur()}
   else if(id==="exKcal"||id==="exLabel"){e.preventDefault();ACT.addextra()}
   else if(id==="g_in"){e.preventDefault();const b=$("#sheet [data-act=addfood],#sheet [data-act=savefood]");if(b)b.click()}
 });
